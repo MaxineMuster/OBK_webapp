@@ -25,31 +25,6 @@ function findMatchingKeys(jsonObj, regex) {
     return matchingKeys;
 }
 
-function processPins(user_param_key, regexPattern, descTemplate, pinRole) {
-    const json = user_param_key; // Use the input JSON object
-    
-    // Find matching keys
-    const matches = findMatchingKeys(json, regexPattern);
-    
-    // Process each match
-    matches.forEach(key => {
-        const match = regexPattern.exec(key);
-        if (match) {
-            const number = match[1]; // Captured number from the regex
-            
-            // Access the corresponding value
-            const value = json[key];
-            
-            // Construct the description and script lines
-            desc += descTemplate.replace("{number}", number).replace("{value}", value) + "\n";
-            scr += `backlog setPinRole ${value} ${pinRole}; `;
-            scr += `setPinChannel ${value} ${number}\n`;
-            tmpl.pins[value] = `${pinRole};${number}`;
-        }
-    });
-}
-
-
 function processJSON_UserParamKeyStyle(js,user_param_key) {
     console.log("Entering processJSON_UserParamKeyStyle");
     let tmpl = {
