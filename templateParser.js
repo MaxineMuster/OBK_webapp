@@ -8,6 +8,48 @@ function findUserParamKey(js)
         
     return js;
 }
+
+// test new function to use regexp to find objects
+// use e.g. for matching  rl1_on, rl3_on ... by /^rl\d+_on/
+function findMatchingKeys(jsonObj, regex) {
+    const matchingKeys = [];
+
+    // Loop through the keys of the JSON object
+    for (const key in jsonObj) {
+        // Check if the key matches the regex
+        if (regex.test(key)) {
+            matchingKeys.push(key);
+        }
+    }
+
+    return matchingKeys;
+}
+
+function processPins(user_param_key, regexPattern, descTemplate, pinRole) {
+    const json = user_param_key; // Use the input JSON object
+    
+    // Find matching keys
+    const matches = findMatchingKeys(json, regexPattern);
+    
+    // Process each match
+    matches.forEach(key => {
+        const match = regexPattern.exec(key);
+        if (match) {
+            const number = match[1]; // Captured number from the regex
+            
+            // Access the corresponding value
+            const value = json[key];
+            
+            // Construct the description and script lines
+            desc += descTemplate.replace("{number}", number).replace("{value}", value) + "\n";
+            scr += `backlog setPinRole ${value} ${pinRole}; `;
+            scr += `setPinChannel ${value} ${number}\n`;
+            tmpl.pins[value] = `${pinRole};${number}`;
+        }
+    });
+}
+
+
 function processJSON_UserParamKeyStyle(js,user_param_key) {
     console.log("Entering processJSON_UserParamKeyStyle");
     let tmpl = {
@@ -50,7 +92,34 @@ function processJSON_UserParamKeyStyle(js,user_param_key) {
         desc += "Device seems to be using " + tmpl.board + " module, which is " + tmpl.chip + " chip."+"\n";
     }
     
+    function processPins(user_param_key, regexPattern, descTemplate, pinRole,nochan=0) {
+    const json = user_param_key; // Use the input JSON object
+    
+    // Find matching keys
+    const matches = findMatchingKeys(json, regexPattern);
+    
+    // Process each match
+    matches.forEach(key => {
+        const match = regexPattern.exec(key);
+        if (match) {
+            const number = match[1]; // Captured number from the regex
+            if (number == "") nochan = 1;
+            // Access the corresponding value
+            const value = json[key];
+            
+            // Construct the description and script lines
+            desc += descTemplate.replace("{number}", number).replace("{value}", value) + "\n";
+            scr += `backlog setPinRole ${value} ${pinRole}; `;
+            if (!nochan) scr += `setPinChannel ${value} ${number}\n`;
+            tmpl.pins[value] = `${pinRole};${number}`;
+        }
+    });
+}
+    
     let value;
+/*
+// moved to "regex" search code below
+
     for(let i = 0; i < 10; i++) {
         let name = "rl"+i+"_pin";
         value = user_param_key[name];
@@ -75,6 +144,7 @@ function processJSON_UserParamKeyStyle(js,user_param_key) {
             tmpl.pins[""+value] = "WifiLED_n;0";
         }
     }
+
     for(let i = 0; i < 10; i++) {
         let name = "door"+i+"_magt_pin";
         value = user_param_key[name];
@@ -115,6 +185,8 @@ function processJSON_UserParamKeyStyle(js,user_param_key) {
             tmpl.pins[""+value] = "TglChanOnTgl;"+i+"";
         }
     }
+    
+*/    
     value = user_param_key.gate_sensor_pin_pin;
     if(value != undefined) {
         desc += "- Door/Gate Sensor on P"+value+"\n";
@@ -248,6 +320,9 @@ function processJSON_UserParamKeyStyle(js,user_param_key) {
         scr += "setPinChannel "+value+" "+ch+"\n";
         tmpl.pins[""+value] = "PWM;"+ch;
     }
+
+
+/*
     value = user_param_key.rl_on1_pin;
     if(value != undefined) {
 		let ch = 1;
@@ -264,6 +339,115 @@ function processJSON_UserParamKeyStyle(js,user_param_key) {
         scr += "setPinChannel "+value+" "+ch+"\n";
         tmpl.pins[""+value] = "BridgeREV;"+ch;
     }
+
+// first try (like other keys)
+
+    for(let i = 0; i < 10; i++) {
+        let name = "rl_on"+i+"_pin";
+        value = user_param_key[name];
+        if(value != undefined) {
+            desc += "- Bridge Relay On (channel " +i + ") on P"+value+"\n";
+            scr += "backlog setPinRole "+value+" Rel"+"; ";
+            scr += "setPinChannel "+value+" "+i+"\n";
+            tmpl.pins[""+value] = "Rel;"+i+"";
+        }
+    }
+    for(let i = 0; i < 10; i++) {
+        let name = "rl_off"+i+"_pin";
+        value = user_param_key[name];
+        if(value != undefined) {
+            desc += "- Bridge Relay Off (channel " +i + ") on P"+value+"\n";
+            scr += "backlog setPinRole "+value+" Rel_n"+"; ";
+            scr += "setPinChannel "+value+" "+i+"\n";
+            tmpl.pins[""+value] = "Rel_n;"+i+"";
+        }
+    }
+    
+*/
+/*
+// more general try with regexp
+    // regex pattern for 'rl_on<number>_pin'
+    regexPattern = /^rl_on(\d+)_pin/;
+    matches = findMatchingKeys(user_param_key, regexPattern);    
+    matches.forEach(key => {
+        // Extract number using the regex
+        const match = regexPattern.exec(key);
+        if (match) {
+            const number = match[1]; // Captured number from the regex
+//            console.log(`Key: ${key}, Number: ${number}`);
+           value = user_param_key[key];
+//            console.log(`Value: ${value}`);
+            desc += "- Bridge Relay On (channel " + number + ") on P" + value + "\n";
+            scr += "backlog setPinRole " + value + " Rel" + "; ";
+            scr += "setPinChannel " + value + " " + number + "\n";
+            tmpl.pins["" + value] = "Rel;" + number + "";
+        }
+    });
+
+    // for 'rl_off<number>_pin' in a similar manner
+    regexPattern = /^rl_off(\d+)_pin/;
+    matches = findMatchingKeys(user_param_key, regexPattern);    
+    matches.forEach(key => {
+        const match = regexPattern.exec(key);
+        if (match) {
+            const number = match[1]; // Extract number
+//            console.log(`Key: ${key}, Number: ${number}`);
+           value = user_param_key[key];
+//            console.log(`Value: ${value}`);
+            desc += "- Bridge Relay Off (channel " + number + ") on P" + value + "\n";
+            scr += "backlog setPinRole " + value + " Off" + "; ";
+            scr += "setPinChannel " + value + " " + number + "\n";
+            tmpl.pins["" + value] = "Rel_n;" + number + "";
+        }
+    });
+*/
+    // for 'rl_on<number>_pin'
+    Pattern = /^rl_on(\d+)_pin/;
+    DescTemplate = "- Bridge Relay On (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "Rel");
+    
+    // for 'rl_off<number>_pin'
+    Pattern = /^rl_off(\d+)_pin/;
+    DescTemplate = "- Bridge Relay Off (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "Rel_n");
+
+    // for 'rl<number>_pin'
+    Pattern = /^rl(\d+)_pin/;
+    DescTemplate = "- Relay (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "Rel");
+
+    // for 'led<number>_pin'
+    Pattern = /^led(\d+)_pin/;
+    DescTemplate = "- LED (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "LED");
+
+    // for 'door<number>_magt_pin'
+    Pattern = /^door(\d+)_magt_pin/;
+    DescTemplate = "- Door Sensor (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "dInput");
+
+    // for 'netled[<number>]_pin'
+    Pattern = /^netled(\d*)_pin/;
+    DescTemplate = "- WiFi LED on P{value}";
+    // WiFi LED has no channel, so use nochan=1 (last argument)
+    processPins(user_param_key, Pattern, DescTemplate, "WifiLED_n", 1);
+
+    // for 'bt<number>_pin'
+    Pattern = /^bt(\d+)_pin/;
+    DescTemplate = "- Button (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "Btn");
+
+    // for 'onoff<number>_magt_pin'
+    Pattern = /^onoff(\d+)/;
+    DescTemplate = "- TglChannelToggle (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "TglChanOnTgl");
+
+    // for 'k<number>pin_pin'
+    Pattern = /^k(\d+)pin_pin/;
+    DescTemplate = "- Button (channel {number}) on P{value}";
+    processPins(user_param_key, Pattern, DescTemplate, "Btn");
+
+    
     // LED
     if(user_param_key.iicscl != undefined)
     {
