@@ -8568,6 +8568,45 @@
       "wiki": "https://www.elektroda.com/rtvforum/topic4020767.html"
     },
     {
+      "vendor": "Action",
+      "bDetailed": "0",
+      "name": "LSC Smart Plug (with Energy Meter)",
+      "model": "3202087.1",
+      "chip": "BK7238",
+      "board": "T1-2S-NL",
+      "keywords": ["power metering", "3680W", "FS 125634"],
+      "pins": {
+        "0": "WifiLED;0",
+        "7": "BL0937CF;0",
+        "8": "BL0937CF1;0",
+        "9": "LED_n;0",
+        "11": "BL0937SEL;0",
+        "24": "Rel;0",
+        "26": "Btn;0"
+      },
+      "command": "",
+      "image": "https://obrazki.elektroda.pl/5533322700_1769036509.png",
+      "wiki": "https://www.elektroda.com/rtvforum/topic4161922.html"
+    },
+    {
+      "vendor": "Tuya",
+      "bDetailed": "0",
+      "name": "Generic 16A Mini Switch",
+      "model": "",
+      "chip": "BK7238",
+      "board": "on PCB",
+      "keywords": ["T1-CHL", "AU5101XA", "e1n6c5uw", "keyfxuj3d5wg53wx", "cwpezmgx7zbylz3a"],
+      "pins": {
+        "6": "TglChanOnTgl;1",
+        "15": "Btn_Tgl_All;1",
+        "17": "LED;1",
+        "26": "Rel;1"
+      },
+      "command": "",
+      "image": "https://obrazki.elektroda.pl/3995604400_1769061470.png",
+      "wiki": "https://www.elektroda.com/rtvforum/topic4161841.html"
+    },      
+    {
       "vendor": "Tuya",
       "bDetailed": "0",
       "name": "Mini Smart Switch",
@@ -9158,6 +9197,32 @@
       "command": "PowerSave 1",
       "image": "https://obrazki.elektroda.pl/6578369000_1699868581.png",
       "wiki": "https://www.elektroda.com/rtvforum/topic4014350.html"
+    },
+    {
+      "vendor": "Action",
+      "bDetailed": "0",
+      "name": "LSC Smart Connect RGBCW Ceiling Lamp 1800lm",
+      "model": "3218147",
+      "chip": "BK7231N",
+      "board": "CBU",
+      "flags": "138434323",
+      "keywords": [
+        "LGLPCB646",
+        "LMF22AN2-DB-DI-SM2289EM",
+        "Plafoniera",
+        "light"
+      ],
+      "pins": {
+        "6": "PWM;1",
+        "7": "PWM;5",
+        "8": "PWM;4",
+        "15": "IRRecv;0",        
+        "24": "PWM;3",
+        "26": "PWM;2"
+      },
+      "command": "",
+      "image": "https://obrazki.elektroda.pl/6739741800_1769098083.png",
+      "wiki": "https://www.elektroda.com/rtvforum/topic4162084.html"
     },
     {
       "vendor": "AVATTO",
@@ -11817,7 +11882,8 @@
       "pins": {
         "6": "LED_n;1",
         "7": "Btn_Tgl_All;0",
-        "24": "Rel;1"
+        "24": "Rel;1",
+        "26": "TglChanOnTgl;1"
       },
       "command": "",
       "image": "https://obrazki.elektroda.pl/1790643400_1762454021.png",

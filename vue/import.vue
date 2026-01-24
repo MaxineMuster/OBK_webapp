@@ -4,8 +4,9 @@
     Here you can import configuration from a template. Both OBK templates and Cloudcutter profiles are supported. Importing a profile may ovewrite your current pins/channels/startup command configuration, it will also clear LFS (autoexec.bat). 
     <div class="container">
       <div class="item"  style="width: 300px;">
-        <h3>1. Enter template here</h3>
+        <h3>1. Enter template or drag and drop Tuya firmware</h3>
         <p>Here you can enter an  <a href="https://openbekeniot.github.io/webapp/devicesList.html">OBK template</a>/JSON text from Cloudcutter. <a href="https://github.com/tuya-cloudcutter/tuya-cloudcutter.github.io/tree/master/devices"> Here </a> is a list of cloudcutter devices. Just open one and copy-paste config below.</p>
+        <p><b>New:</b> You can also drag and drop a 2MB binary full device dump or just the Tuya config partition to automatically extract keys and JSON configuration.</p>
         <textarea id="importTemplate" 
         placeholder="Paste (or drag and drop) OBK template, Tuya JSON or cloudcutter json here" style="vertical-align: top; width: 280px; height:500px" @input="handleImportTemplateChange" v-model="importTemplateText"></textarea>
        <br/>
@@ -31,7 +32,8 @@
       </div>
 
       <div class="item" style="width: 300px;">
-      <h3> 3. Once you are happy with the script, use button below to apply:</h3>
+      <h3>3. Apply Script</h3>
+      <p>Once you are happy with the script, use button below to apply:</p>
                <br>
        <button @click="applyScript()">Clear OBK and apply new script from above</button>
        <br>
@@ -39,6 +41,13 @@
        Script execution log:
         <p id ="progressTextID" v-text="progressText"> </p>
       </div>
+      
+      <div class="item" style="width: 300px;">
+        <h3> 4. If something fails, check the log</h3>
+         <br>
+         <div id="debugLog" style="width: 280px; height: 500px; border: 1px solid #999; overflow-y: scroll; padding: 5px; background: white; white-space: pre-wrap;" v-html="logHtml"></div>
+         <button @click="clearLog()">Clear Log</button>
+       </div>
     </div>
   </div>
 </template>
@@ -58,9 +67,30 @@
         progressText: "",
         generateTextElem:undefined,
         progressTextElem:undefined,
+        logHtml: "",
       }
     },
     methods:{
+      log(msg, type = 'info') {
+          let color = 'black';
+          if(type === 'error') color = 'red';
+          if(type === 'warning') color = 'orange';
+          if(type === 'success') color = 'green';
+          if(type === 'info') color = 'blue';
+          
+          const time = new Date().toLocaleTimeString();
+          const html = `<div style="color:${color}">[${time}] ${msg}</div>`;
+          this.logHtml += html;
+          
+          this.$nextTick(() => {
+             const elem = document.getElementById('debugLog');
+             if(elem) elem.scrollTop = elem.scrollHeight;
+          });
+          console.log(`[${type}] ${msg}`);
+      },
+      clearLog(){
+        this.logHtml = "";
+      },
       getinfo(){
        
 
@@ -143,6 +173,7 @@
       },
     handleImportTemplateChange(event) {
       console.log("Import template changed!");
+       this.clearLog();
        this.refreshTemplateImport();
     },
     refreshTemplateImport() {
@@ -179,16 +210,58 @@
       handleDrop(event) {
         event.preventDefault();
 
+        this.clearLog();
+        this.importTemplateText = ""; // Clear old content immediately
         const files = event.dataTransfer.files;
 
         if (files.length > 0) {
-          const reader = new FileReader();
+          const file = files[0];
+          
+          if (file.name.toLowerCase().endsWith('.bin')) {
+            this.log(`Processing dropped file: ${file.name}`, 'info');
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const arrayBuffer = evt.target.result;
+              const uint8Array = new Uint8Array(arrayBuffer);
+              try {
+                if (typeof window.TuyaExporter === 'undefined' || !window.TuyaExporter.extractConfig) {
+                   this.log('TuyaExporter library not loaded correctly.', 'error');
+                   return;
+                }
+                // Pass log callback logic
+                const result = window.TuyaExporter.extractConfig(uint8Array, this.log);
+                if (result) {
+                  if (typeof result === 'object') {
+                    this.importTemplateText = JSON.stringify(result, null, 2);
+                    this.refreshTemplateImport(); // trigger generation
+                    this.log('Config extracted and loaded successfully.', 'success');
+                  } else {
+                    this.importTemplateText = result;
+                    this.refreshTemplateImport(); // trigger generation
+                    this.log('Config extracted but parsing had issues. Raw/Repaired text loaded.', 'warning');
+                  }
+                } else {
+                  this.log('Failed to extract config from binary.', 'error');
+                }
+              } catch (err) {
+                this.log(`Decryption crash: ${err.message}`, 'error');
+                console.error(err);
+              }
+            };
+            reader.readAsArrayBuffer(file);
+          } else {
+             // Text/JSON file
+            this.log(`Dropped file is not .bin, trying text read for ${file.name}`, 'info');
+            const reader = new FileReader();
 
-          reader.onload = (e) => {
-            this.importTemplateText = e.target.result;
-          };
+            reader.onload = (e) => {
+              this.importTemplateText = e.target.result;
+              this.refreshTemplateImport();
+              this.log("Loaded text file content.", 'success');
+            };
 
-          reader.readAsText(files[0]);
+            reader.readAsText(file); 
+          }
         }
       },
 
@@ -198,6 +271,15 @@
         this.progressTextElem = document.getElementById("progressTextID");
         this.generateTextElem = document.getElementById("generateTextID");
         this.generateTextElem.innerHTML = "Waiting.";
+
+        const cryptoScript = document.createElement("script");
+        cryptoScript.setAttribute(
+          "src",
+          "https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"
+        );
+        cryptoScript.async = true;
+        document.head.appendChild(cryptoScript);
+
         const plugin = document.createElement("script");
         plugin.setAttribute(
           "src",
@@ -206,6 +288,15 @@
         );
         plugin.async = true;
         document.head.appendChild(plugin);
+        
+        const plugin2 = document.createElement("script");
+        plugin2.setAttribute(
+          "src",
+            "https://openbekeniot.github.io/webapp/tuyaExporter.js"
+        );
+        plugin2.async = true;
+        document.head.appendChild(plugin2);
+        
       let importTemplateTextarea = document.getElementById("importTemplate");
       importTemplateTextarea.addEventListener('dragover', this.handleDragOver);
       importTemplateTextarea.addEventListener('drop', this.handleDrop);
