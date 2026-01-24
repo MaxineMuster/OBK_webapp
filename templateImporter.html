@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>OpenBeken Configuration Generator - Parse Tuya JSON data from Cloudcutter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+  <!-- Bootstrap JS -->
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+  <!-- Crypto-JS for AES operations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    /* Log Output Styling */
+    #log-output,
+    #output-text,
+    #input-text,
+    #output-text-templ,
+    #output-text-scr {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+
+    #log-output {
+      height: 100%;
+      /* Fill available height */
+      min-height: 550px;
+      /* Increased height to span roughly two rows */
+      overflow-y: auto;
+      background-color: #ffffff;
+      /* White background */
+      color: #212529;
+      /* Bootstrap dark gray text */
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ced4da;
+      /* Match Bootstrap input border */
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Revised colors for white background */
+    .log-info {
+      color: #212529;
+    }
+
+    .log-success {
+      color: #28a745;
+      font-weight: bold;
+    }
+
+    /* Bootstrap Success Green */
+    .log-warning {
+      color: #856404;
+    }
+
+    /* Bootstrap Warning Dark Yellow */
+    .log-error {
+      color: #dc3545;
+      font-weight: bold;
+    }
+
+    /* Bootstrap Danger Red */
+    .log-debug {
+      color: #007bff;
+    }
+
+    /* Bootstrap Primary Blue */
+
+    /* Drag & Drop Styling */
+    #input-text {
+      transition: background-color 0.3s, border-color 0.3s;
+    }
+
+    #input-text.dragover {
+      background-color: #e9ecef;
+      border-color: #4ec9b0;
+      border-width: 2px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>OpenBeken Configuration Generator - Parse Tuya JSON data from Cloudcutter</h1>
+    <p>This tool can generate OpenBeken config with one click. Just input JSON data extracted from firmware, preferrably
+      taken from cloudcutter profile and get your config. Usage:</p>
+    <ul>
+      <li>Get cloudcutter profile text or user_param_key from BK tools (advanced users)</li>
+      <li>Click <a href="https://github.com/tuya-cloudcutter/tuya-cloudcutter.github.io/tree/master/devices">here</a>
+        for profiles</li>
+      <li>Paste the JSON into input field</li>
+      <li>When doing it in OpenBeken Web Application, you will have 'Apply template' button, just click it</li>
+    </ul>
+    <div class="row">
+      <!-- Left Column: Inputs and Outputs -->
+      <div class="col-md-8">
+        <div class="row">
+          <div class="col-md-6">
+            <label for="input-text">Input (JSON or Drag .bin):</label>
+            <textarea class="form-control" id="input-text" rows="10"
+              placeholder="Paste JSON here or drag & drop Tuya firmware .bin file"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label for="output-text">Text interpretation:</label>
+            <textarea class="form-control" id="output-text" rows="10"></textarea>
+          </div>
+        </div>
+        <div class="row mt-3">
+          <div class="col-md-6">
+            <label for="output-text-templ">OpenBeken template:</label>
+            <textarea class="form-control" id="output-text-templ" rows="10"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label for="output-text-scr">OpenBeken one shot script:</label>
+            <textarea class="form-control" id="output-text-scr" rows="10"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Log -->
+      <div class="col-md-4">
+        <label for="log-output">Log:</label>
+        <div id="log-output"></div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="text-center">Examples (each button will fetch a cloudcutter JSON):</span>
+      <div class="col-md-12 text-center">
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/athom-garage-door-opener.json')">Garage
+          Door</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/aldi-casalux-wifi-led-rgb-light-strip.json')">RGB
+          strip</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/lenovo-se-242dc-rgbct-bulb-v1.2.21.json')">RGBCW
+          LED</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/deta-6014ha-switch.json')">Deta
+          Plug</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/pegant-pg3451-3-outlet-power-strip.json')">Triple
+          socket + USB</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/b04e860fe0bb1c8bed417ab36c57e6759ec08510/devices/spectrum-woj14415-rgbct-gu10-bulb.json')">SM2135
+          LED</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/43a341ef1dd8eec8514e1d435563bd9008ff2835/devices/hombli-hbss-0209-smart-socket-b2030248-energy-plug.json')">BL0937
+          PLUG</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/b04e860fe0bb1c8bed417ab36c57e6759ec08510/devices/tuya-generic-rr620w-jl-smart-switch.json')">BL0942
+          power metering plug</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/nous-p4-e14-rgbct-bulb.json')">BP5758
+          LED</button>
+        <button class="btn btn-primary mt-3" id="parse-btn"
+          onclick="loadSample('https://raw.githubusercontent.com/tuya-cloudcutter/tuya-cloudcutter.github.io/a8a6539aad21a03d5db41e4d27e9d5516c62fe23/devices/lsc-3004200-wifi-outdoor-dual-socket.json')">Bridge
+          socket (TODO)</button>
+      </div>
+
+
+    </div>
+  </div>
+  <script type="text/javascript" src="templateParser.js"></script>
+  <script>
+    var inputText;
+    var outputText_desc;
+    var outputText_script;
+    var outputText_template;
+    var logOutput;
+
+    function loadSample(url) {
+      fetch(url)
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (data) {
+          inputText.value = JSON.stringify(data, null, 2);
+          refreshFields();
+        })
+        .catch(function (error) {
+          log('Error fetching JSON: ' + error, 'error');
+          console.error('Error fetching JSON: ', error);
+        });
+
+    }
+    function refreshFields() {
+      log("Starting text parsing...", 'info');
+      try {
+        let res = processJSON(inputText.value);
+        if (!res) {
+          throw new Error("processJSON returned null/undefined");
+        }
+        log("JSON structure valid. Processing...", 'info');
+
+        outputText_desc.value = res.desc;
+        outputText_script.value = res.scr;
+        outputText_template.value = JSON.stringify(res.tmpl, null, 2);
+
+        // Try to extract some info for log
+        let info = [];
+        if (res.tmpl.vendor) info.push(res.tmpl.vendor);
+        if (res.tmpl.model) info.push(res.tmpl.model);
+        if (info.length > 0) {
+          log(`Parsed device: ${info.join(" ")}`, 'success');
+        } else {
+          log("Parsed successfully.", 'success');
+        }
+      } catch (e) {
+        log("Error parsing JSON: " + e.message, 'error');
+        // Optional: clear outputs on error? Or keep previous?
+        // Keeping previous might be better for user correction.
+      }
+    }
+
+    // --- Logging Utils ---
+    function log(msg, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `log-${type}`;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      if (logOutput) {
+        logOutput.appendChild(div);
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+      console.log(`[${type}] ${msg}`);
+    }
+
+    // --- Tuya Config Decryption Logic ---
+    const KEY_MASTER = "qwertyuiopasdfgh";
+    const SECTOR_SIZE = 4096;
+    const MAGIC_FIRST_BLOCK = 0x13579753;
+    const MAGIC_NEXT_BLOCK = 0x98761234;
+    const KEY_PART_1 = "8710_2M";
+    const KEY_PART_2 = "HHRRQbyemofrtytf";
+    const MAGIC_CONFIG_START = [0x46, 0xDC, 0xED, 0x0E, 0x67, 0x2F, 0x3B, 0x70, 0xAE, 0x12, 0x76, 0xA3, 0xF8, 0x71, 0x2E, 0x03];
+
+    function findMagic(data) {
+      for (let i = 0; i < data.length - MAGIC_CONFIG_START.length; i++) {
+        let found = true;
+        for (let j = 0; j < MAGIC_CONFIG_START.length; j++) {
+          if (data[i + j] !== MAGIC_CONFIG_START[j]) {
+            found = false;
+            break;
+          }
+        }
+        if (found) return i;
+      }
+      return -1;
+    }
+
+    function checkCRC(expected, data, offset, len) {
+      let n = 0n;
+      for (let i = 0; i < len; i++) {
+        n += BigInt(data[offset + i]);
+      }
+      const val = Number(n & 0xFFFFFFFFn);
+      return val === expected;
+    }
+
+    function readUInt32LE(buffer, offset) {
+      return (buffer[offset] |
+        (buffer[offset + 1] << 8) |
+        (buffer[offset + 2] << 16) |
+        (buffer[offset + 3] << 24)) >>> 0;
+    }
+
+    function makeSecondaryKey(innerKey) {
+      const keyPart1Bytes = new TextEncoder().encode(KEY_PART_1);
+      const keyPart2Bytes = new TextEncoder().encode(KEY_PART_2);
+      const key = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) {
+        key[i] = (keyPart1Bytes[i & 3] + keyPart2Bytes[i]) & 0xFF;
+      }
+      for (let i = 0; i < 16; i++) {
+        key[i] = (key[i] + innerKey[i]) % 256;
+      }
+      return key;
+    }
+
+    function decryptBlock(data, baseOffset, blockIndex, keyBytes) {
+      const readOfs = baseOffset + SECTOR_SIZE * blockIndex;
+      if (readOfs + SECTOR_SIZE > data.length) return null;
+
+      const blockData = data.slice(readOfs, readOfs + SECTOR_SIZE);
+      const keyWordArr = CryptoJS.lib.WordArray.create(keyBytes);
+      const dataWordArr = CryptoJS.lib.WordArray.create(blockData);
+
+      const decryptedWords = CryptoJS.AES.decrypt(
+        { ciphertext: dataWordArr },
+        keyWordArr,
+        { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.ZeroPadding }
+      );
+
+      const sigBytes = decryptedWords.sigBytes;
+      const words = decryptedWords.words;
+      const result = new Uint8Array(sigBytes);
+      for (let i = 0; i < sigBytes; i++) {
+        result[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+      }
+      return result;
+    }
+
+    function decodeTuyaConfig(data) {
+      logOutput.textContent = '';
+      log("Starting Tuya Config Decryption...", 'info');
+
+      let needle = findMagic(data);
+      if (needle < 0) {
+        log("Magic header not found!", 'error');
+        let isFullFF = true;
+        for (let i = 0; i < data.length && i < 1000; i++) {
+          if (data[i] !== 0xFF) { isFullFF = false; break; }
+        }
+        if (isFullFF) log("Binary seems to be erased (0xFF).", 'warning');
+        if (data.length > 3 && data[0] === 67 && data[1] === 70 && data[2] === 71) {
+          log("Detected OBK config (CFG header), not Tuya.", 'warning');
+        }
+        return;
+      }
+
+      const realStart = needle - 32;
+      log(`Magic found at ${needle}. Config starts at ${realStart}.`, 'success');
+
+      if (realStart < 0) {
+        log("Invalid start position (negative).", 'error');
+        return;
+      }
+
+      const masterKeyBytes = new TextEncoder().encode(KEY_MASTER);
+      const firstBlockDecrypted = decryptBlock(data, realStart, 0, masterKeyBytes);
+
+      if (!firstBlockDecrypted || firstBlockDecrypted.length === 0) {
+        log("Failed to decrypt first block.", 'error');
+        return;
+      }
+
+      const mag = readUInt32LE(firstBlockDecrypted, 0);
+      if (mag !== MAGIC_FIRST_BLOCK) {
+        log(`Bad first block magic: 0x${mag.toString(16)}`, 'error');
+        return;
+      }
+
+      const crc = readUInt32LE(firstBlockDecrypted, 4);
+      const innerKey = firstBlockDecrypted.slice(8, 24);
+
+      if (!checkCRC(crc, innerKey, 0, 16)) {
+        log("First block CRC failed.", 'error');
+        return;
+      }
+      log("First block verified. Inner key extracted.", 'success');
+
+      const secondaryKey = makeSecondaryKey(innerKey);
+
+      let fullDecryptedData = new Uint8Array(0);
+      const append = (chunk) => {
+        const tmp = new Uint8Array(fullDecryptedData.length + chunk.length);
+        tmp.set(fullDecryptedData);
+        tmp.set(chunk, fullDecryptedData.length);
+        fullDecryptedData = tmp;
+      };
+
+      append(firstBlockDecrypted.slice(8));
+
+      for (let blockIndex = 1; blockIndex < 500; blockIndex++) {
+        const nextBlock = decryptBlock(data, realStart, blockIndex, secondaryKey);
+        if (!nextBlock) break;
+
+        const blkMag = readUInt32LE(nextBlock, 0);
+        const blkCrc = readUInt32LE(nextBlock, 4);
+
+        if (!checkCRC(blkCrc, nextBlock, 8, nextBlock.length - 8)) {
+          log(`Block ${blockIndex}: CRC mismatch.`, 'warning');
+        }
+
+        append(nextBlock.slice(8));
+      }
+
+      log(`Decryption complete. Payload size: ${fullDecryptedData.length}`, 'success');
+      extractAndDisplayKeys(fullDecryptedData);
+    }
+
+    function extractAndDisplayKeys(data) {
+      const signatures = ["user_param_key", "Jsonver", "ap_s{", "baud_cfg", "gw_bi"];
+      let keysAt = -1;
+
+      const findBytes = (haystack, needle) => {
+        for (let i = 0; i < haystack.length - needle.length; i++) {
+          let match = true;
+          for (let j = 0; j < needle.length; j++) {
+            if (haystack[i + j] !== needle[j]) { match = false; break; }
+          }
+          if (match) return i;
+        }
+        return -1;
+      };
+
+      for (const sig of signatures) {
+        const sigBytes = new TextEncoder().encode(sig);
+        const idx = findBytes(data, sigBytes);
+        if (idx !== -1) {
+          keysAt = idx;
+          log(`Found signature "${sig}" at ${idx}`, 'info');
+          break;
+        }
+      }
+
+      if (keysAt === -1) {
+        log("No known JSON start signature found.", 'error');
+        return;
+      }
+
+      let jsonStart = -1;
+      const sigUsed = signatures.find(s => findBytes(data, new TextEncoder().encode(s)) === keysAt);
+
+      if (sigUsed === "Jsonver") {
+        for (let i = keysAt; i >= 0; i--) {
+          if (data[i] === 123) { jsonStart = i; break; }
+        }
+      } else {
+        for (let i = keysAt; i < data.length; i++) {
+          if (data[i] === 123) { jsonStart = i; break; }
+        }
+      }
+
+      if (jsonStart === -1) {
+        log("Could not find JSON start '{'.", 'error');
+        return;
+      }
+
+      let bracketCount = 0;
+      let jsonEnd = -1;
+      for (let i = jsonStart; i < data.length; i++) {
+        if (data[i] === 123) bracketCount++;
+        if (data[i] === 125) {
+          bracketCount--;
+          if (bracketCount === 0) { jsonEnd = i; break; }
+        }
+      }
+
+      if (jsonEnd === -1) jsonEnd = data.length;
+
+      const jsonBytes = data.slice(jsonStart, jsonEnd + 1);
+      let cleanStr = "";
+      for (let i = 0; i < jsonBytes.length; i++) {
+        const b = jsonBytes[i];
+        if (b >= 32 && b <= 127) cleanStr += String.fromCharCode(b);
+      }
+
+      const parts = cleanStr.split(',');
+      const results = {};
+      let outputText = "{\n";
+
+      for (const part of parts) {
+        const colonIdx = part.indexOf(':');
+        if (colonIdx === -1) continue;
+
+        const clean = (s) => s.replace(/"/g, '').replace(/}/g, '').replace(/{/g, '').trim();
+        const key = clean(part.substring(0, colonIdx));
+        const val = clean(part.substring(colonIdx + 1));
+
+        if (key) {
+          results[key] = val;
+          outputText += `  "${key}": "${val}",\n`;
+        }
+      }
+      outputText = outputText.replace(/,\n$/, "\n") + "}";
+
+      inputText.value = outputText;
+      log(`Successfully extracted ${Object.keys(results).length} keys.`, 'success');
+      refreshFields();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      inputText = document.getElementById('input-text');
+      outputText_desc = document.getElementById('output-text');
+      outputText_script = document.getElementById('output-text-scr');
+      outputText_template = document.getElementById('output-text-templ');
+      logOutput = document.getElementById('log-output');
+
+      inputText.addEventListener('change', function () {
+        refreshFields();
+      });
+
+      // --- Drag & Drop Initialization ---
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        inputText.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      inputText.addEventListener('dragover', () => inputText.classList.add('dragover'));
+      ['dragleave', 'drop'].forEach(evt => {
+        inputText.addEventListener(evt, () => inputText.classList.remove('dragover'));
+      });
+
+      inputText.addEventListener('drop', handleDrop);
+
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+          const file = files[0];
+          if (file.name.toLowerCase().endsWith('.bin')) {
+            log(`Processing dropped file: ${file.name}`, 'info');
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const arrayBuffer = evt.target.result;
+              const uint8Array = new Uint8Array(arrayBuffer);
+              try {
+                decodeTuyaConfig(uint8Array);
+              } catch (err) {
+                log(`Decryption crash: ${err.message}`, 'error');
+                console.error(err);
+              }
+            };
+            reader.readAsArrayBuffer(file);
+          } else {
+            log(`Dropped file is not .bin, trying text read for ${file.name}`, 'warning');
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              inputText.value = evt.target.result;
+              refreshFields();
+              log("Loaded text file content.", 'success');
+            };
+            reader.readAsText(file);
+          }
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>
